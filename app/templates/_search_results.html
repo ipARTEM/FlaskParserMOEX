@@ -1,0 +1,17 @@
+{% if results and results|length>0 %}
+<table class="table">
+  <thead><tr><th>SECID</th><th>Название</th><th>Последняя</th><th>Изм., %</th></tr></thead>
+  <tbody>
+  {% for t in results %}
+    <tr>
+      <td>{{ t.secid }}</td>
+      <td>{{ t.name }}</td>
+      <td>{{ "%.4f"|format(t.last) if t.last else "—" }}</td>
+      <td>{{ "%.2f"|format(t.change) if t.change is not none else "—" }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>Ничего не найдено.</p>
+{% endif %}

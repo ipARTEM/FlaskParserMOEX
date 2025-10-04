@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<form method="post" class="form">
+  <label>Тикер или часть названия:
+    <input type="text" name="query" value="{{ query or '' }}" placeholder="GAZP, SBER, нефть...">
+  </label>
+  <button class="btn" type="submit">Искать</button>
+</form>
+
+{% if query is defined %}
+  <h3>Результаты для: “{{ query }}”</h3>
+  {% include "_search_results.html" %}
+{% endif %}
+{% endblock %}
