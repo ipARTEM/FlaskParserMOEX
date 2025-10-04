@@ -30,7 +30,7 @@
 ## ⚙️ Установка и запуск (Windows)
 
 ```powershell
-git clone https://github.com/ВАШ_НИК/FlaskParserMOEX.git
+git clone https://github.com/ipARTEM/FlaskParserMOEX.git
 cd FlaskParserMOEX
 
 # Создаём виртуальное окружение
