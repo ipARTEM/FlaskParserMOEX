@@ -1,0 +1,14 @@
+{# app/templates/heatmap.html #}
+{% macro render_grid(tiles) -%}
+<div class="grid">
+  {% for t in tiles %}
+    <div class="tile" title="{{ t.secid }}: {{ t.last }}">
+      <div class="tile-head">{{ t.secid }}</div>
+      <div class="tile-name">{{ t.name }}</div>
+      <div class="tile-num">
+        {{ "%.2f"|format(t.change) if t.change is not none else "—" }}%
+      </div>
+    </div>
+  {% endfor %}
+</div>
+{%- endmacro %}

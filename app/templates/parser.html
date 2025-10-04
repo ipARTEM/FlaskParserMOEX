@@ -1,12 +1,15 @@
 {% extends "base.html" %}
+{% from "heatmap.html" import render_grid %}
+
+
 {% block content %}
 <div class="toolbar">
-  <a class="btn" href="{{ url_for('market.parser_page', mode='fast') }}">Обновить (fast, из кэша)</a>
+  <a class="btn" href="{{ url_for('market.parser_page', mode='fast') }}">Обновить (fast)</a>
   <a class="btn" href="{{ url_for('market.parser_page', mode='fresh', admin_token=request.args.get('admin_token','')) }}">Обновить (fresh)</a>
 </div>
 
 <h2>Акции (TQBR)</h2>
-{% include "heatmap.html" with context %}
+{{ render_grid(stock_tiles) }}
 <div class="grid">
   {% for t in stock_tiles %}
     <div class="tile" title="{{ t.secid }}: {{ t.last }}">
@@ -18,6 +21,7 @@
 </div>
 
 <h2>Фьючерсы (RFUD)</h2>
+{{ render_grid(fut_tiles) }}
 <div class="grid">
   {% for t in fut_tiles %}
     <div class="tile" title="{{ t.secid }}: {{ t.last }}">
