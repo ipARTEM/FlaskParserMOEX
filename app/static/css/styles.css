@@ -1,0 +1,14 @@
+body { font-family: system-ui, Segoe UI, Arial, sans-serif; margin:0; }
+.nav { display:flex; gap:1rem; padding:1rem; background:#101820; color:#fff; }
+.nav a { color:#fff; text-decoration:none; }
+.container { padding: 1rem; }
+.btn { display:inline-block; padding:.5rem 1rem; border:1px solid #333; border-radius:6px; text-decoration:none; }
+.toolbar { margin-bottom: .75rem; display:flex; gap:.5rem; }
+.grid { display:grid; grid-template-columns: repeat(auto-fill,minmax(150px,1fr)); gap:.5rem; margin-bottom:1rem; }
+.tile { border-radius:10px; padding:.75rem; background:linear-gradient(180deg,#1f2937,#111827); color:#fff; }
+.tile-head { font-weight:700; font-size:1rem; }
+.tile-name { font-size:.9rem; opacity:.8; }
+.tile-num { font-size:1.1rem; margin-top:.25rem; }
+.table { border-collapse: collapse; width:100%; }
+.table th,.table td { border:1px solid #ddd; padding:.5rem; }
+.footer { padding:1rem; opacity:.7; }
