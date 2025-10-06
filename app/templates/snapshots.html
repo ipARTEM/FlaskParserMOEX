@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="toolbar" style="gap:.5rem; flex-wrap:wrap">
+  <a class="btn" href="{{ url_for('market.parser_page', mode='fast') }}">Обновить (fast)</a>
+  <a class="btn" href="{{ url_for('market.parser_page', mode='fresh', admin_token=request.args.get('admin_token','')) }}">Обновить (fresh)</a>
+  <a class="btn" href="{{ url_for('market.snapshot_latest') }}">Последний снимок</a>
+</div>
+
+<h2>Снимки TQBR</h2>
+{% if tqbr %}
+  <table class="table">
+    <thead><tr><th>Время (UTC)</th><th>Кол-во бумаг</th><th></th></tr></thead>
+    <tbody>
+    {% for row in tqbr %}
+      {# row: (id, created_at, items_count) #}
+      {% set ts = row.created_at.strftime("%Y-%m-%d %H:%M:%S") %}
+      <tr>
+        <td>{{ ts }}</td>
+        <td>{{ row.items_count }}</td>
+        <td>
+          <a class="btn" href="{{ url_for('market.snapshot_latest', at=ts) }}">Показать</a>
+          <a class="btn" href="{{ url_for('market.snapshot_csv', at=ts) }}">CSV</a>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <p>Нет снимков для TQBR.</p>
+{% endif %}
+
+<h2>Снимки RFUD</h2>
+{% if rfud %}
+  <table class="table">
+    <thead><tr><th>Время (UTC)</th><th>Кол-во бумаг</th><th></th></tr></thead>
+    <tbody>
+    {% for row in rfud %}
+      {% set ts = row.created_at.strftime("%Y-%m-%d %H:%M:%S") %}
+      <tr>
+        <td>{{ ts }}</td>
+        <td>{{ row.items_count }}</td>
+        <td>
+          <a class="btn" href="{{ url_for('market.snapshot_latest', at=ts) }}">Показать</a>
+          <a class="btn" href="{{ url_for('market.snapshot_csv', at=ts) }}">CSV</a>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <p>Нет снимков для RFUD.</p>
+{% endif %}
+
+<style>
+.table { border-collapse: collapse; width: 100%; max-width: 900px; }
+.table th, .table td { border-bottom: 1px solid #e6e6f0; padding: .55rem .6rem; text-align: left; }
+.table tr:hover { background: #f6f6fb; }
+</style>
+{% endblock %}

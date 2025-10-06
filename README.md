@@ -24,6 +24,8 @@
 ![heatmap demo](docs/1.png)
 ![heatmap demo](docs/2.png)
 ![heatmap demo](docs/3.png)
+![heatmap demo](docs/4.png)
+![heatmap demo](docs/5.png)
 
 ---
 
@@ -45,3 +47,11 @@ $env:FLASK_ADMIN_TOKEN="set-your-strong-admin-token"
 
 # Запуск
 python run.py
+
+
+### История и экспорт
+- `/market/snapshot` — показывает последний снимок из SQLite.
+- `/market/snapshot?at=YYYY-MM-DD[ HH:MM]` — снимок «на момент времени» (UTC).
+- `/market/api/snapshot?board=TQBR&at=...` — JSON-API (одна/обе доски).
+- `/market/snapshot.csv?at=...` — экспорт снимка в CSV.
+

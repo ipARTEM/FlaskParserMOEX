@@ -11,6 +11,15 @@ def create_app() -> Flask:
     app = Flask(__name__, template_folder="templates", static_folder="static")
     app.config.from_object(Config)
 
+        # --- Авто-создание таблиц при первом запуске ---
+    try:
+        from .services.init_db import create_all_tables
+        with app.app_context():
+            create_all_tables()
+    except Exception as e:
+        app.logger.warning(f"DB init skipped: {e}")
+
+
     cache.init_app(app)
 
     app.register_blueprint(main_bp)
