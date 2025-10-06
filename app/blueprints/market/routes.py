@@ -5,6 +5,12 @@ from ...services.moex_client import MoexClient
 from ...services.heatmap_service import HeatmapService
 from ...services.search_service import SearchService
 
+from ...services.repository import MoexRepository
+from ...services.models import Engine, Market, Board
+from datetime import datetime
+from sqlalchemy import select
+
+
 bp = Blueprint("market", __name__, template_folder="../../templates")
 
 _heatmap = HeatmapService()
@@ -52,17 +58,45 @@ def parser_page():
         if current_app.config.get("ADMIN_TOKEN") and token != current_app.config["ADMIN_TOKEN"]:
             abort(403, description="Admin token required for fresh mode")
 
-    st = current_app.config["MARKET_STOCK"]
+    st = current_app.config["MARKET_STOCK"]  # {'engine','market','board'}
     ft = current_app.config["MARKET_FUT"]
 
     stock_tiles = _get_tiles(st["engine"], st["market"], st["board"], fresh=fresh)
     fut_tiles   = _get_tiles(ft["engine"], ft["market"], ft["board"], fresh=fresh)
 
-    return render_template("parser.html",
-                           page_title="Теплокарты MOEX",
-                           stock_tiles=stock_tiles,
-                           fut_tiles=fut_tiles,
-                           mode=mode)
+    # --- Сохраняем снимки в БД (по желанию: только при fresh)
+    try:
+        repo = MoexRepository()
+        # upsert справочников для TQBR
+        eng_s = repo._get_or_create_engine(st["engine"], st["engine"].title())
+        mkt_s = repo._get_or_create_market(eng_s, st["market"], st["market"].title())
+        brd_s = repo._get_or_create_board(mkt_s, st["board"], st["board"])
+
+        snap_s = repo.create_snapshot(brd_s, created_at=datetime.utcnow())
+        repo.add_items(snap_s, _heatmap.to_db_items(stock_tiles))
+
+        # upsert справочников для RFUD
+        eng_f = repo._get_or_create_engine(ft["engine"], ft["engine"].title())
+        mkt_f = repo._get_or_create_market(eng_f, ft["market"], ft["market"].title())
+        brd_f = repo._get_or_create_board(mkt_f, ft["board"], ft["board"])
+
+        snap_f = repo.create_snapshot(brd_f, created_at=datetime.utcnow())
+        repo.add_items(snap_f, _heatmap.to_db_items(fut_tiles))
+
+        repo.session.commit()
+        repo.close()
+    except Exception as e:
+        current_app.logger.warning(f"DB snapshot save failed: {e}")
+
+    return render_template(
+        "parser.html",
+        page_title="Теплокарты MOEX",
+        stock_tiles=stock_tiles,
+        fut_tiles=fut_tiles,
+        mode=mode
+    )
+
+
 
 @bp.get("/search")
 def search_form():
