@@ -24,6 +24,8 @@
 ![heatmap demo](docs/1.png)
 ![heatmap demo](docs/2.png)
 ![heatmap demo](docs/3.png)
+![heatmap demo](docs/4.png)
+![heatmap demo](docs/5.png)
 
 ---
 

@@ -8,7 +8,7 @@ from .db import SessionLocal
 from .models import Engine, Market, Board, Security, Snapshot, SnapshotItem
 
 from datetime import datetime
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, func
 
 class MoexRepository:
     """
@@ -146,3 +146,25 @@ class MoexRepository:
                 "valtoday": it.valtoday,
             })
         return tiles
+
+    def list_snapshots(self, board_code: str, limit: int = 50):
+        """
+        Возвращает список последних снимков доски: (id, created_at, items_count)
+        """
+        board = self.session.scalar(select(Board).where(Board.code == board_code))
+        if not board:
+            return []
+
+        q = (
+            select(
+                Snapshot.id,
+                Snapshot.created_at,
+                func.count(SnapshotItem.id).label("items_count"),
+            )
+            .join(SnapshotItem, SnapshotItem.snapshot_id == Snapshot.id, isouter=True)
+            .where(Snapshot.board_id == board.id)
+            .group_by(Snapshot.id)
+            .order_by(desc(Snapshot.created_at))
+            .limit(limit)
+        )
+        return list(self.session.execute(q).all())

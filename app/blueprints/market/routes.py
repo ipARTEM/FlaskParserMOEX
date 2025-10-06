@@ -213,3 +213,24 @@ def snapshot_csv():
                         headers={"Content-Disposition": f'attachment; filename=\"{filename}\"'})
     finally:
         repo.close()
+
+@bp.get("/snapshots")
+def snapshots_list():
+    """
+    Страница со списком последних снимков в БД (по двум доскам).
+    У каждой строки — кнопка 'Показать' → /market/snapshot?at=YYYY-MM-DD HH:MM:SS
+    """
+    repo = MoexRepository()
+    try:
+        tqbr = repo.list_snapshots("TQBR", limit=100)
+        rfud = repo.list_snapshots("RFUD", limit=100)
+    finally:
+        repo.close()
+
+    return render_template(
+        "snapshots.html",
+        page_title="Снимки из БД",
+        tqbr=tqbr,
+        rfud=rfud,
+    )
+
