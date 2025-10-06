@@ -7,6 +7,9 @@ from sqlalchemy.orm import Session
 from .db import SessionLocal
 from .models import Engine, Market, Board, Security, Snapshot, SnapshotItem
 
+from datetime import datetime
+from sqlalchemy import select, desc
+
 class MoexRepository:
     """
     Репозиторий инкапсулирует всю работу с БД:
@@ -106,5 +109,40 @@ class MoexRepository:
                 "last": item.last,
                 "change": item.change_pct,
                 "valtoday": item.valtoday,
+            })
+        return tiles
+    
+
+    def get_snapshot_by_time(self, board_code: str, at_utc: datetime | None) -> Snapshot | None:
+        """
+        Возвращает снимок с наибольшим created_at <= at_utc.
+        Если at_utc = None, берём самый последний снимок.
+        """
+        stmt_board = select(Board).where(Board.code == board_code)
+        board = self.session.scalar(stmt_board)
+        if not board:
+            return None
+
+        q = select(Snapshot).where(Snapshot.board_id == board.id)
+        if at_utc:
+            q = q.where(Snapshot.created_at <= at_utc)
+        q = q.order_by(desc(Snapshot.created_at))
+        return self.session.scalars(q).first()
+
+    def get_tiles_for_snapshot(self, snapshot: Snapshot | None, limit: int = 200):
+        if not snapshot:
+            return []
+        items = (self.session.query(SnapshotItem, Security)
+                 .join(Security, SnapshotItem.security_id == Security.id)
+                 .filter(SnapshotItem.snapshot_id == snapshot.id)
+                 .limit(limit).all())
+        tiles = []
+        for it, sec in items:
+            tiles.append({
+                "secid": sec.secid,
+                "name": (sec.shortname or sec.secid)[:18],
+                "last": it.last,
+                "change": it.change_pct,
+                "valtoday": it.valtoday,
             })
         return tiles

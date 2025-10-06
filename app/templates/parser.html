@@ -3,9 +3,17 @@
 
 
 {% block content %}
-<div class="toolbar">
+<div class="toolbar" style="gap:.5rem; flex-wrap:wrap">
   <a class="btn" href="{{ url_for('market.parser_page', mode='fast') }}">Обновить (fast)</a>
   <a class="btn" href="{{ url_for('market.parser_page', mode='fresh', admin_token=request.args.get('admin_token','')) }}">Обновить (fresh)</a>
+  <a class="btn" href="{{ url_for('market.snapshot_latest') }}">Снимок из БД (последний)</a>
+
+  <form method="get" action="{{ url_for('market.snapshot_latest') }}" style="display:flex; gap:.5rem; align-items:center">
+    <input type="text" name="at" placeholder="YYYY-MM-DD или YYYY-MM-DD HH:MM" style="padding:.4rem .6rem">
+    <button class="btn" type="submit">Показать на момент</button>
+  </form>
+
+  <a class="btn" href="{{ url_for('market.snapshot_csv') }}">Экспорт CSV</a>
 </div>
 
 <h2>Акции (TQBR)</h2>

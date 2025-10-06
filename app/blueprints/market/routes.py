@@ -10,6 +10,12 @@ from ...services.models import Engine, Market, Board
 from datetime import datetime
 from sqlalchemy import select
 
+from ...services.repository import MoexRepository
+from ...services.time_utils import parse_iso_utc
+from flask import Response
+import csv
+from io import StringIO
+
 
 bp = Blueprint("market", __name__, template_folder="../../templates")
 
@@ -133,3 +139,86 @@ def api_search():
     tiles += _get_tiles(st["engine"], st["market"], st["board"], fresh=False)
     tiles += _get_tiles(ft["engine"], ft["market"], ft["board"], fresh=False)
     return jsonify({"query": q, "results": _search.search(tiles, q)})
+
+
+@bp.get("/snapshot")
+def snapshot_latest():
+    """
+    Показывает снимок из SQLite. Поддерживает ?at=YYYY-MM-DD[ HH:MM]
+    для выбора снимка 'на момент времени' (UTC).
+    """
+    at = parse_iso_utc(request.args.get("at"))
+    repo = MoexRepository()
+    try:
+        snap_tqbr = repo.get_snapshot_by_time("TQBR", at)
+        snap_rfud = repo.get_snapshot_by_time("RFUD", at)
+
+        stock_tiles = repo.get_tiles_for_snapshot(snap_tqbr)
+        fut_tiles   = repo.get_tiles_for_snapshot(snap_rfud)
+
+        return render_template(
+            "parser.html",
+            page_title=f"Снимок из БД ({'последний' if at is None else 'на момент ' + request.args.get('at','')})",
+            stock_tiles=stock_tiles,
+            fut_tiles=fut_tiles,
+            mode="db"
+        )
+    finally:
+        repo.close()
+
+@bp.get("/api/snapshot")
+def api_snapshot():
+    """
+    JSON-API: /market/api/snapshot?board=TQBR&at=YYYY-MM-DD[ HH:MM]
+    Если board не указан — вернём обе доски.
+    """
+    at = parse_iso_utc(request.args.get("at"))
+    board = (request.args.get("board") or "").upper().strip()
+    repo = MoexRepository()
+    try:
+        def _one(bc: str):
+            snap = repo.get_snapshot_by_time(bc, at)
+            return repo.get_tiles_for_snapshot(snap)
+
+        if board in ("TQBR", "RFUD"):
+            return jsonify({board: _one(board)})
+
+        return jsonify({"TQBR": _one("TQBR"), "RFUD": _one("RFUD")})
+    finally:
+        repo.close()
+
+@bp.get("/snapshot.csv")
+def snapshot_csv():
+    """
+    Экспорт последнего снимка (или на момент ?at) для обеих досок в один CSV.
+    Колонки: board, secid, name, last, change, valtoday
+    """
+    at = parse_iso_utc(request.args.get("at"))
+    repo = MoexRepository()
+    try:
+        rows = []
+        for bc in ("TQBR", "RFUD"):
+            snap = repo.get_snapshot_by_time(bc, at)
+            tiles = repo.get_tiles_for_snapshot(snap)
+            for t in tiles:
+                rows.append({
+                    "board": bc,
+                    "secid": t["secid"], "name": t["name"],
+                    "last": t["last"], "change": t["change"], "valtoday": t["valtoday"],
+                })
+
+        # Пишем в память CSV
+        buf = StringIO()
+        writer = csv.DictWriter(buf, fieldnames=["board", "secid", "name", "last", "change", "valtoday"])
+        writer.writeheader()
+        writer.writerows(rows)
+        data = buf.getvalue()
+        buf.close()
+
+        filename = "snapshot_latest.csv" if at is None else f"snapshot_at_{request.args.get('at','').replace(':','-').replace(' ','_')}.csv"
+        return Response(
+            data, mimetype="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        )
+    finally:
+        repo.close()
