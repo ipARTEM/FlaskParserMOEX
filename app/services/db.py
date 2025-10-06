@@ -1,6 +1,6 @@
 # app/services/db.py
 from __future__ import annotations
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, DeclarativeBase, scoped_session
 import os
 
@@ -16,9 +16,21 @@ def make_engine(db_url: str | None = None):
     engine = create_engine(
         url,
         echo=False,
-        connect_args={"check_same_thread": False},  # важно для Flask/Thread
+        connect_args={
+            "check_same_thread": False,
+            "timeout": 15,  # ожидать до 15 сек, если файл занят
+        },
         pool_pre_ping=True,
     )
+
+    # Включаем WAL и нормальную синхронизацию при каждом connect
+    @event.listens_for(engine, "connect")
+    def _set_sqlite_pragma(dbapi_conn, _):
+        cur = dbapi_conn.cursor()
+        cur.execute("PRAGMA journal_mode=WAL;")
+        cur.execute("PRAGMA synchronous=NORMAL;")
+        cur.close()
+
     return engine
 
 # Глобальные фабрики:

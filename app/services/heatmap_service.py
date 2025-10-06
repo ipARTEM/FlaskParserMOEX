@@ -25,7 +25,6 @@ class HeatmapService:
             prev = self._safe(r.get("PREVPRICE"))
             prev_settle = self._safe(r.get("PREVSETTLEPRICE"))
 
-            # Для фьючерсов часто нет PREVPRICE — используем PREVSETTLEPRICE
             base = prev if not isnan(prev) else prev_settle
             change = None
             if base and base == base and last and last == last and base != 0:
@@ -34,8 +33,24 @@ class HeatmapService:
             tiles.append({
                 "secid": secid,
                 "name": short,
+                "shortname": short,
                 "last": last if last == last else None,
-                "change": change,   # может быть None
+                "base_price": base if base == base else None,   # ← добавили
+                "change": change,
                 "valtoday": r.get("VALTODAY") or r.get("VOLTODAY"),
             })
         return tiles
+
+    def to_db_items(self, tiles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Приводим к формату, который ест репозиторий при сохранении снимка."""
+        return [
+            {
+                "secid": t["secid"],
+                "shortname": t.get("shortname"),
+                "last": t.get("last"),
+                "base_price": t.get("base_price"),
+                "change": t.get("change"),
+                "valtoday": t.get("valtoday"),
+            }
+            for t in tiles
+        ]

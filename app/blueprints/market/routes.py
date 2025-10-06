@@ -1,32 +1,25 @@
 # app/blueprints/market/routes.py
-from flask import Blueprint, render_template, request, jsonify, abort, current_app, g
+from flask import Blueprint, render_template, request, jsonify, abort, current_app, g, Response
 from ...extensions import cache
 from ...services.moex_client import MoexClient
 from ...services.heatmap_service import HeatmapService
 from ...services.search_service import SearchService
 
 from ...services.repository import MoexRepository
-from ...services.models import Engine, Market, Board
-from datetime import datetime
-from sqlalchemy import select
-
-from ...services.repository import MoexRepository
 from ...services.time_utils import parse_iso_utc
-from flask import Response
+
+from datetime import datetime
 import csv
 from io import StringIO
-
 
 bp = Blueprint("market", __name__, template_folder="../../templates")
 
 _heatmap = HeatmapService()
 _search = SearchService()
 
+# ---------- helpers ----------
+
 def _get_client() -> MoexClient:
-    """
-    Создаём MoexClient лениво и храним в flask.g на время запроса.
-    Берём конфиг ТОЛЬКО внутри запроса, когда есть контекст приложения.
-    """
     if not hasattr(g, "_moex_client"):
         g._moex_client = MoexClient(
             timeout=current_app.config.get("HTTP_TIMEOUT", 10),
@@ -38,10 +31,6 @@ def _cache_key(engine: str, market: str, board: str) -> str:
     return f"board:{engine}:{market}:{board}"
 
 def _get_tiles(engine: str, market: str, board: str, fresh: bool = False):
-    """
-    Возвращает список плиток (теплокарта) с кэшированием.
-    fresh=True — форс-обновление.
-    """
     key = _cache_key(engine, market, board)
     if not fresh:
         cached = cache.get(key)
@@ -54,6 +43,8 @@ def _get_tiles(engine: str, market: str, board: str, fresh: bool = False):
     cache.set(key, tiles, timeout=60)
     return tiles
 
+# ---------- routes ----------
+
 @bp.get("/parser")
 def parser_page():
     mode = request.args.get("mode", "fast")
@@ -64,35 +55,37 @@ def parser_page():
         if current_app.config.get("ADMIN_TOKEN") and token != current_app.config["ADMIN_TOKEN"]:
             abort(403, description="Admin token required for fresh mode")
 
+    # ВАЖНО: получаем конфиг и плитки СНАЧАЛА
     st = current_app.config["MARKET_STOCK"]  # {'engine','market','board'}
     ft = current_app.config["MARKET_FUT"]
 
     stock_tiles = _get_tiles(st["engine"], st["market"], st["board"], fresh=fresh)
     fut_tiles   = _get_tiles(ft["engine"], ft["market"], ft["board"], fresh=fresh)
 
-    # --- Сохраняем снимки в БД (по желанию: только при fresh)
-    try:
-        repo = MoexRepository()
-        # upsert справочников для TQBR
-        eng_s = repo._get_or_create_engine(st["engine"], st["engine"].title())
-        mkt_s = repo._get_or_create_market(eng_s, st["market"], st["market"].title())
-        brd_s = repo._get_or_create_board(mkt_s, st["board"], st["board"])
+    # Сохраняем снимки в БД только в fresh-режиме
+    if fresh:
+        repo = None
+        try:
+            repo = MoexRepository()
 
-        snap_s = repo.create_snapshot(brd_s, created_at=datetime.utcnow())
-        repo.add_items(snap_s, _heatmap.to_db_items(stock_tiles))
+            eng_s = repo._get_or_create_engine(st["engine"], st["engine"].title())
+            mkt_s = repo._get_or_create_market(eng_s, st["market"], st["market"].title())
+            brd_s = repo._get_or_create_board(mkt_s, st["board"], st["board"])
+            snap_s = repo.create_snapshot(brd_s, created_at=datetime.utcnow())
+            repo.add_items(snap_s, _heatmap.to_db_items(stock_tiles))
 
-        # upsert справочников для RFUD
-        eng_f = repo._get_or_create_engine(ft["engine"], ft["engine"].title())
-        mkt_f = repo._get_or_create_market(eng_f, ft["market"], ft["market"].title())
-        brd_f = repo._get_or_create_board(mkt_f, ft["board"], ft["board"])
+            eng_f = repo._get_or_create_engine(ft["engine"], ft["engine"].title())
+            mkt_f = repo._get_or_create_market(eng_f, ft["market"], ft["market"].title())
+            brd_f = repo._get_or_create_board(mkt_f, ft["board"], ft["board"])
+            snap_f = repo.create_snapshot(brd_f, created_at=datetime.utcnow())
+            repo.add_items(snap_f, _heatmap.to_db_items(fut_tiles))
 
-        snap_f = repo.create_snapshot(brd_f, created_at=datetime.utcnow())
-        repo.add_items(snap_f, _heatmap.to_db_items(fut_tiles))
-
-        repo.session.commit()
-        repo.close()
-    except Exception as e:
-        current_app.logger.warning(f"DB snapshot save failed: {e}")
+            repo.session.commit()
+        except Exception as e:
+            current_app.logger.warning(f"DB snapshot save failed: {e}")
+        finally:
+            if repo:
+                repo.close()
 
     return render_template(
         "parser.html",
@@ -101,8 +94,6 @@ def parser_page():
         fut_tiles=fut_tiles,
         mode=mode
     )
-
-
 
 @bp.get("/search")
 def search_form():
@@ -140,38 +131,45 @@ def api_search():
     tiles += _get_tiles(ft["engine"], ft["market"], ft["board"], fresh=False)
     return jsonify({"query": q, "results": _search.search(tiles, q)})
 
-
 @bp.get("/snapshot")
 def snapshot_latest():
-    """
-    Показывает снимок из SQLite. Поддерживает ?at=YYYY-MM-DD[ HH:MM]
-    для выбора снимка 'на момент времени' (UTC).
-    """
+    """Показывает снимок из SQLite. Поддерживает ?at=YYYY-MM-DD[ HH:MM] (UTC)."""
     at = parse_iso_utc(request.args.get("at"))
+
+    # Инициализируем, чтобы не ловить UnboundLocalError
+    stock_tiles, fut_tiles = [], []
+
     repo = MoexRepository()
     try:
         snap_tqbr = repo.get_snapshot_by_time("TQBR", at)
-        snap_rfud = repo.get_snapshot_by_time("RFUD", at)
-
         stock_tiles = repo.get_tiles_for_snapshot(snap_tqbr)
-        fut_tiles   = repo.get_tiles_for_snapshot(snap_rfud)
 
-        return render_template(
-            "parser.html",
-            page_title=f"Снимок из БД ({'последний' if at is None else 'на момент ' + request.args.get('at','')})",
-            stock_tiles=stock_tiles,
-            fut_tiles=fut_tiles,
-            mode="db"
-        )
+        snap_rfud = repo.get_snapshot_by_time("RFUD", at)
+        fut_tiles  = repo.get_tiles_for_snapshot(snap_rfud)
     finally:
         repo.close()
 
+    # Если БД ещё пустая — показываем дружелюбный экран
+    if not stock_tiles and not fut_tiles:
+        return render_template(
+            "parser.html",
+            page_title="Снимок из БД (нет данных)",
+            stock_tiles=[],
+            fut_tiles=[],
+            mode="db",
+        )
+
+    return render_template(
+        "parser.html",
+        page_title=f"Снимок из БД ({'последний' if at is None else 'на момент ' + request.args.get('at','')})",
+        stock_tiles=stock_tiles,
+        fut_tiles=fut_tiles,
+        mode="db",
+    )
+
 @bp.get("/api/snapshot")
 def api_snapshot():
-    """
-    JSON-API: /market/api/snapshot?board=TQBR&at=YYYY-MM-DD[ HH:MM]
-    Если board не указан — вернём обе доски.
-    """
+    """JSON-API: /market/api/snapshot?board=TQBR&at=YYYY-MM-DD[ HH:MM]"""
     at = parse_iso_utc(request.args.get("at"))
     board = (request.args.get("board") or "").upper().strip()
     repo = MoexRepository()
@@ -182,17 +180,13 @@ def api_snapshot():
 
         if board in ("TQBR", "RFUD"):
             return jsonify({board: _one(board)})
-
         return jsonify({"TQBR": _one("TQBR"), "RFUD": _one("RFUD")})
     finally:
         repo.close()
 
 @bp.get("/snapshot.csv")
 def snapshot_csv():
-    """
-    Экспорт последнего снимка (или на момент ?at) для обеих досок в один CSV.
-    Колонки: board, secid, name, last, change, valtoday
-    """
+    """Экспорт последнего снимка (или на момент ?at) в CSV по обеим доскам."""
     at = parse_iso_utc(request.args.get("at"))
     repo = MoexRepository()
     try:
@@ -207,7 +201,6 @@ def snapshot_csv():
                     "last": t["last"], "change": t["change"], "valtoday": t["valtoday"],
                 })
 
-        # Пишем в память CSV
         buf = StringIO()
         writer = csv.DictWriter(buf, fieldnames=["board", "secid", "name", "last", "change", "valtoday"])
         writer.writeheader()
@@ -216,9 +209,7 @@ def snapshot_csv():
         buf.close()
 
         filename = "snapshot_latest.csv" if at is None else f"snapshot_at_{request.args.get('at','').replace(':','-').replace(' ','_')}.csv"
-        return Response(
-            data, mimetype="text/csv",
-            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
-        )
+        return Response(data, mimetype="text/csv",
+                        headers={"Content-Disposition": f'attachment; filename=\"{filename}\"'})
     finally:
         repo.close()

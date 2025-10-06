@@ -39,4 +39,10 @@
     </div>
   {% endfor %}
 </div>
+
 {% endblock %}
+
+{% if not stock_tiles and not fut_tiles %}
+  <p>В БД пока нет снимков. Нажмите «Обновить (fresh)», чтобы сохранить свежие данные.</p>
+{% endif %}
+
