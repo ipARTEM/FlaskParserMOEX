@@ -4,7 +4,7 @@
 
 ### Веб-платформа для анализа данных Московской биржи (MOEX)
 
-<img src="docs/2.png" alt="Heatmap Screenshot" width="650"/>
+<img src="docs/3.2.png" alt="Heatmap Screenshot" width="650"/>
 
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg?logo=python&logoColor=white)]()
 [![Flask](https://img.shields.io/badge/Flask-3.0-000000.svg?logo=flask)]()

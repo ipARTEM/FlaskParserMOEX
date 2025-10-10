@@ -1,0 +1,76 @@
+# ============================
+# 🧠 FlaskParserMOEX Project
+# ============================
+
+# --- Python / Flask ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pdb
+*.log
+*.tmp
+*.bak
+*.swp
+
+# --- Virtual Environment ---
+.venv/
+venv/
+env/
+ENV/
+
+# --- SQLite databases and journals ---
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+*.sqlite3-journal
+*.db
+*.db-journal
+
+# --- Project-specific DB files ---
+flaskparsermoex.sqlite3
+flaskparsermoex.sqlite3-*
+data/
+db_local/
+
+# --- VS Code / IDE junk ---
+.vscode/
+.idea/
+*.code-workspace
+
+# --- System / OS files ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Byte-compiled and build ---
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# --- Test, temp, and cache dirs ---
+.cache/
+pytest_cache/
+__tests__/
+tmp/
+temp/
+logs/
+
+
+
+# --- Env files (если используешь) ---
+.env
+.env.local
+.env.test
+.env.prod
+
+# --- Coverage / reports ---
+.coverage
+htmlcov/
+*.cover
+coverage.xml
+
+# --- Misc ---
+*.orig
+*.rej
