@@ -41,8 +41,11 @@ class HeatmapService:
             })
         return tiles
 
-    def to_db_items(self, tiles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Приводим к формату, который ест репозиторий при сохранении снимка."""
+    def to_db_items(self, tiles: list[dict]) -> list[dict]:
+        """
+        Приводит плитки к списку словарей с ключами, которые ожидает репозиторий:
+        secid, shortname, last, base_price, change, valtoday
+        """
         return [
             {
                 "secid": t["secid"],
